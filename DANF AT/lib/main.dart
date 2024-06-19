@@ -79,14 +79,15 @@ class _MyHomePageState extends State<MyHomePage> {
   final int port = 1883;
   final String username = 'tdmstjgu';
   final String password = 'mBv2M7HusSx8';
-  final String subscribeTopic = '/Danf/TESTE_2024/V3/Mqtt/Feedback';
-  final String publishTopic = '/Danf/TESTE_2024/V3/Mqtt/Comando';
+  String publishTopic = '/Danf/TESTE_2024/V3/Mqtt/Comando';
+  String subscribeTopic = '/Danf/TESTE_2024/V3/Mqtt/Feedback';
 
   MqttServerClient? client;
   bool _connected = false;
   String _receivedMessage = '';
   Timer? _timer;
   TextEditingController _textController = TextEditingController();
+  TextEditingController _topicController = TextEditingController();
 
   @override
   void initState() {
@@ -146,7 +147,11 @@ class _MyHomePageState extends State<MyHomePage> {
       });
     });
 
-    client!.subscribe(subscribeTopic, MqttQos.atMostOnce);
+    _subscribeToTopic(subscribeTopic);
+  }
+
+  void _subscribeToTopic(String topic) {
+    client!.subscribe(topic, MqttQos.atMostOnce);
   }
 
   void _startSendingMessages() {
@@ -176,53 +181,96 @@ class _MyHomePageState extends State<MyHomePage> {
     client!.publishMessage(publishTopic, MqttQos.atLeastOnce, builder.payload!);
   }
 
+  void insertTopic() {
+    String topic = _topicController.text.trim();
+
+    // Atualiza os tópicos de publicação e subscrição
+    publishTopic = '/Danf/$topic/V3/Mqtt/Comando';
+    subscribeTopic = '/Danf/$topic/V3/Mqtt/Feedback';
+
+    // Desconecta o cliente MQTT atual, se estiver conectado
+    if (_connected) {
+      _timer?.cancel();
+      client?.disconnect();
+    }
+
+    // Cria e conecta um novo cliente MQTT com os novos tópicos
+    _connect();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-        appBar: AppBar(
-          title: Text('DANF - MQTT'),
-        ),
-        body: Padding(
+      appBar: AppBar(
+        title: Text('DANF - MQTT'),
+      ),
+      body: Padding(
         padding: const EdgeInsets.all(16.0),
-    child: Column
-      (
-      children: <Widget>[
-        Text(
-          'Status: ${_connected ? 'Connected' : 'Disconnected'}',
-          style: TextStyle(fontSize: 20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: <Widget>[
+            Text(
+              'Status: ${_connected ? 'Connected' : 'Disconnected'}',
+              style: TextStyle(fontSize: 20),
+            ),
+            SizedBox(height: 10),
+            Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _topicController,
+                    decoration: InputDecoration(
+                      labelText: 'Tópico',
+                    ),
+                  ),
+                ),
+                SizedBox(width: 10),
+                TextButton(
+                  onPressed: () {
+                    insertTopic();
+                  },
+                  child: Text('OK'),
+                ),
+              ],
+            ),
+            SizedBox(height: 10),
+            Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _textController,
+                    decoration: InputDecoration(
+                      labelText: 'Message',
+                    ),
+                    onSubmitted: (text) {
+                      if (_connected) {
+                        _publish(text);
+                      }
+                    },
+                  ),
+                ),
+                SizedBox(width: 10),
+                ElevatedButton(
+                  onPressed: () {
+                    if (_connected) {
+                      _publish(_textController.text);
+                    }
+                  },
+                  child: Text('Enviar'),
+                ),
+              ],
+            ),
+            SizedBox(height: 20),
+            Text(
+              'Received: $_receivedMessage',
+              style: TextStyle(fontSize: 16),
+            ),
+          ],
         ),
-        TextField(
-          controller: _textController,
-          decoration: InputDecoration(
-            labelText: 'Message',
-          ),
-          onSubmitted: (text) {
-            if (_connected) {
-              _publish(text);
-            }
-          },
-        ),
-        SizedBox(height: 20),
-        ElevatedButton(
-          onPressed: () {
-            if (_connected) {
-              _publish(_textController.text);
-            }
-          },
-          child: Text('OK'),
-        ),
-        SizedBox(height: 20),
-        Text(
-          'Received: $_receivedMessage',
-          style: TextStyle(fontSize: 16),
-        ),
-      ],
-    ),
-        ),
+      ),
     );
   }
 }
-
 class IPPage extends StatefulWidget {
   @override
   _IPPageState createState() => _IPPageState();
@@ -230,9 +278,31 @@ class IPPage extends StatefulWidget {
 
 class _IPPageState extends State<IPPage> {
   String _scanResult = '';
+  Timer? _scanTimer;
+  Socket? _socket;
+  TextEditingController _messageController = TextEditingController();
+  String _receivedMessage = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _startScanLoop();
+  }
+
+  @override
+  void dispose() {
+    _scanTimer?.cancel();
+    _socket?.close();
+    super.dispose();
+  }
+
+  void _startScanLoop() {
+    _scanTimer = Timer.periodic(Duration(seconds: 2), (timer) {
+      _startScan();
+    });
+  }
 
   Future<void> _startScan() async {
-    // UDP socket for sending the broadcast message
     RawDatagramSocket? udpSocket;
 
     try {
@@ -242,21 +312,22 @@ class _IPPageState extends State<IPPage> {
       final String broadcastAddress = '255.255.255.255';
       final int port = 5555;
 
-      // Send broadcast message
       udpSocket.send(utf8.encode('<SI>'), InternetAddress(broadcastAddress), port);
 
-      // Listen for response for 2 seconds
-      await Future.delayed(Duration(seconds: 2));
+      await Future.delayed(Duration(seconds: 1));
 
-      // Receive response
       await for (var datagram in udpSocket) {
         if (datagram == RawSocketEvent.read) {
           Datagram dg = udpSocket.receive()!;
           String response = utf8.decode(dg.data);
           List<String> info = extractInfo(response);
           setState(() {
-            _scanResult = info.join('\n'); // Alteração aqui
+            _scanResult = info[1]; // IP address
           });
+          if (_scanResult.isNotEmpty) {
+            _scanTimer?.cancel();
+            _connectToServer(_scanResult);
+          }
           break;
         }
       }
@@ -276,10 +347,43 @@ class _IPPageState extends State<IPPage> {
       String ip = match.group(2)!;
       String mac = match.group(3)!;
       String version = match.group(4)!;
-      return ['Name: $name', 'IP: $ip', 'MAC: $mac', 'Version: $version'];
+      return [name, ip, mac, version];
     } else {
       print("A mensagem não está no formato esperado.");
       return [];
+    }
+  }
+
+  Future<void> _connectToServer(String ip) async {
+    try {
+      _socket = await Socket.connect(ip, 8080);
+      _socket!.listen(
+            (data) {
+          setState(() {
+            _receivedMessage = utf8.decode(data);
+          });
+        },
+        onError: (error) {
+          print('Socket error: $error');
+          _socket?.destroy();
+        },
+        onDone: () {
+          print('Server closed connection');
+          _socket?.destroy();
+        },
+      );
+      print(': $ip');
+    } catch (e) {
+      print('Error connecting to server: $e');
+    }
+  }
+
+  Future<void> _sendMessage(String message) async {
+    if (_socket != null) {
+      _socket!.write(message);
+      print('Message sent: $message');
+    } else {
+      print('Socket is not connected');
     }
   }
 
@@ -293,16 +397,40 @@ class _IPPageState extends State<IPPage> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            ElevatedButton(
-              onPressed: _startScan,
-              child: Text('Start Scan'),
-            ),
-            SizedBox(height: 20),
-            Text(
-              _scanResult,
-              style: TextStyle(fontSize: 16),
-              textAlign: TextAlign.center, // Ajuste aqui
-            ),
+            if (_scanResult.isNotEmpty) ...[
+              Text(
+                'Connected to $_scanResult',
+                style: TextStyle(fontSize: 16),
+              ),
+              SizedBox(height: 20),
+              TextField(
+                controller: _messageController,
+                decoration: InputDecoration(labelText: 'Enter message'),
+              ),
+              SizedBox(height: 20),
+              ElevatedButton(
+                onPressed: () {
+                  _sendMessage(_messageController.text);
+                },
+                child: Text('Send'),
+              ),
+              SizedBox(height: 20),
+              Text(
+                'Received message:',
+                style: TextStyle(fontSize: 16),
+              ),
+              SizedBox(height: 10),
+              Text(
+                _receivedMessage,
+                style: TextStyle(fontSize: 16),
+                textAlign: TextAlign.center,
+              ),
+            ] else ...[
+              Text(
+                'Buscando a central...',
+                style: TextStyle(fontSize: 16),
+              ),
+            ],
           ],
         ),
       ),
@@ -326,4 +454,3 @@ class CenasPage extends StatelessWidget {
     );
   }
 }
-
