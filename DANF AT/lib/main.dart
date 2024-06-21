@@ -2,13 +2,41 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:mqtt_client/mqtt_client.dart';
 import 'package:mqtt_client/mqtt_server_client.dart';
 
 void main() {
   runApp(MyApp());
 }
+class SplashScreen extends StatefulWidget {
+  @override
+  _SplashScreenState createState() => _SplashScreenState();
+}
 
+class _SplashScreenState extends State<SplashScreen> {
+  @override
+  void initState() {
+    super.initState();
+    // Simula um tempo de espera antes de navegar para a próxima tela
+    Timer(Duration(seconds: 3), () {
+      // Navegar para a próxima tela após 3 segundos
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(builder: (_) => MainPage()),
+      );
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.white, // Cor de fundo da tela de apresentação
+      body: Center(
+        child: Image.asset('assets/img.jpg'),
+      ),
+    );
+  }
+}
 class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
@@ -17,7 +45,7 @@ class MyApp extends StatelessWidget {
       theme: ThemeData(
         primarySwatch: Colors.blue,
       ),
-      home: MainPage(),
+      home: SplashScreen(), // Inicia com a SplashScreen
     );
   }
 }
@@ -87,7 +115,8 @@ class _MyHomePageState extends State<MyHomePage> {
   String _receivedMessage = '';
   Timer? _timer;
   TextEditingController _textController = TextEditingController();
-  TextEditingController _topicController = TextEditingController();
+  TextEditingController _topicController = TextEditingController(text: 'TESTE_2024'); // Valor padrão
+  List<String> _suggestions = ['TESTE_2024', 'teste 1', 'teste 2'];
 
   @override
   void initState() {
@@ -138,8 +167,7 @@ class _MyHomePageState extends State<MyHomePage> {
 
     client!.updates!.listen((List<MqttReceivedMessage<MqttMessage>> c) {
       final MqttPublishMessage recMess = c[0].payload as MqttPublishMessage;
-      final String pt =
-      MqttPublishPayload.bytesToStringAsString(recMess.payload.message);
+      final String pt = MqttPublishPayload.bytesToStringAsString(recMess.payload.message);
 
       print('Received message: $pt from topic: ${c[0].topic}>');
       setState(() {
@@ -177,7 +205,7 @@ class _MyHomePageState extends State<MyHomePage> {
 
   Future<void> _publish(String message) async {
     final builder = MqttClientPayloadBuilder();
-    builder.addString(message);
+    builder.addString(message.toUpperCase());
     client!.publishMessage(publishTopic, MqttQos.atLeastOnce, builder.payload!);
   }
 
@@ -198,6 +226,21 @@ class _MyHomePageState extends State<MyHomePage> {
     _connect();
   }
 
+  Widget _buildConnectionStatus() {
+    return Row(
+      children: [
+        Text(
+          'Status: ',
+          style: TextStyle(fontSize: 20),
+        ),
+        Icon(
+          _connected ? Icons.circle : Icons.circle,
+          color: _connected ? Colors.lightGreen : Colors.red,
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -209,23 +252,15 @@ class _MyHomePageState extends State<MyHomePage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: <Widget>[
-            Text(
-              'Status: ${_connected ? 'Connected' : 'Disconnected'}',
-              style: TextStyle(fontSize: 20),
-            ),
+            _buildConnectionStatus(),
             SizedBox(height: 10),
             Row(
               children: [
                 Expanded(
-                  child: TextField(
-                    controller: _topicController,
-                    decoration: InputDecoration(
-                      labelText: 'Tópico',
-                    ),
-                  ),
+                  child: _buildTopicInput(),
                 ),
                 SizedBox(width: 10),
-                TextButton(
+                ElevatedButton(
                   onPressed: () {
                     insertTopic();
                   },
@@ -240,7 +275,7 @@ class _MyHomePageState extends State<MyHomePage> {
                   child: TextField(
                     controller: _textController,
                     decoration: InputDecoration(
-                      labelText: 'Message',
+                      labelText: 'Messagen',
                     ),
                     onSubmitted: (text) {
                       if (_connected) {
@@ -261,6 +296,38 @@ class _MyHomePageState extends State<MyHomePage> {
               ],
             ),
             SizedBox(height: 20),
+            Row(
+              children: [
+                Expanded(
+                  child: ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.green,
+                    ),
+                    onPressed: () {
+                      if (_connected) {
+                        _publish('OFAN');
+                      }
+                    },
+                    child: Text('ON'),
+                  ),
+                ),
+                SizedBox(width: 10),
+                Expanded(
+                  child: ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.red,
+                    ),
+                    onPressed: () {
+                      if (_connected) {
+                        _publish('OFAO');
+                      }
+                    },
+                    child: Text('OFF'),
+                  ),
+                ),
+              ],
+            ),
+            SizedBox(height: 20),
             Text(
               'Received: $_receivedMessage',
               style: TextStyle(fontSize: 16),
@@ -270,7 +337,56 @@ class _MyHomePageState extends State<MyHomePage> {
       ),
     );
   }
+
+  Widget _buildTopicInput() {
+    return Stack(
+      children: [
+        TextField(
+          controller: _topicController,
+          decoration: InputDecoration(
+            labelText: 'Tópico',
+          ),
+          onChanged: (value) {
+            setState(() {});
+          },
+        ),
+        Positioned(
+          right: 0,
+          top: 8,
+          child: IconButton(
+            icon: Icon(Icons.arrow_drop_down),
+            onPressed: () {
+              _showSuggestions();
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
+  void _showSuggestions() {
+    showModalBottomSheet(
+      context: context,
+      builder: (context) {
+        return ListView(
+          children: _suggestions.map((suggestion) {
+            return ListTile(
+              title: Text(suggestion),
+              onTap: () {
+                setState(() {
+                  _topicController.text = suggestion;
+                });
+                Navigator.pop(context);
+              },
+            );
+          }).toList(),
+        );
+      },
+    );
+  }
 }
+
+
 class IPPage extends StatefulWidget {
   @override
   _IPPageState createState() => _IPPageState();
@@ -287,6 +403,7 @@ class _IPPageState extends State<IPPage> {
   void initState() {
     super.initState();
     _startScanLoop();
+    _startSendingSA(); // Inicia o envio da mensagem 'SA'
   }
 
   @override
@@ -372,7 +489,7 @@ class _IPPageState extends State<IPPage> {
           _socket?.destroy();
         },
       );
-      print(': $ip');
+      print('Connected to: $ip');
     } catch (e) {
       print('Error connecting to server: $e');
     }
@@ -380,11 +497,19 @@ class _IPPageState extends State<IPPage> {
 
   Future<void> _sendMessage(String message) async {
     if (_socket != null) {
+      message = '<$message>'.toUpperCase();
       _socket!.write(message);
       print('Message sent: $message');
     } else {
       print('Socket is not connected');
     }
+  }
+
+  // Função para enviar a mensagem 'SA' a cada 1 segundo
+  void _startSendingSA() {
+    Timer.periodic(Duration(seconds: 1), (timer) {
+      _sendMessage('SA');
+    });
   }
 
   @override
@@ -393,44 +518,79 @@ class _IPPageState extends State<IPPage> {
       appBar: AppBar(
         title: Text('IP Page'),
       ),
-      body: Center(
+      body: Padding(
+        padding: const EdgeInsets.all(16.0),
         child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            if (_scanResult.isNotEmpty) ...[
-              Text(
-                'Connected to $_scanResult',
-                style: TextStyle(fontSize: 16),
-              ),
-              SizedBox(height: 20),
-              TextField(
-                controller: _messageController,
-                decoration: InputDecoration(labelText: 'Enter message'),
-              ),
-              SizedBox(height: 20),
-              ElevatedButton(
-                onPressed: () {
-                  _sendMessage(_messageController.text);
-                },
-                child: Text('Send'),
-              ),
-              SizedBox(height: 20),
-              Text(
-                'Received message:',
-                style: TextStyle(fontSize: 16),
-              ),
-              SizedBox(height: 10),
-              Text(
-                _receivedMessage,
-                style: TextStyle(fontSize: 16),
-                textAlign: TextAlign.center,
-              ),
-            ] else ...[
-              Text(
-                'Buscando a central...',
-                style: TextStyle(fontSize: 16),
-              ),
-            ],
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: <Widget>[
+            Text(
+              'IP: ${_scanResult.isNotEmpty ? _scanResult : 'Buscando a central...'}',
+              style: TextStyle(fontSize: 20),
+            ),
+            SizedBox(height: 10),
+            Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _messageController,
+                    decoration: InputDecoration(
+                      labelText: 'Mensagem',
+                    ),
+                    onSubmitted: (text) {
+                      if (_scanResult.isNotEmpty) {
+                        _sendMessage(text);
+                      }
+                    },
+                  ),
+                ),
+                SizedBox(width: 10),
+                ElevatedButton(
+                  onPressed: () {
+                    if (_scanResult.isNotEmpty) {
+                      _sendMessage(_messageController.text);
+                    }
+                  },
+                  child: Text('Enviar'),
+                ),
+              ],
+            ),
+            SizedBox(height: 20),
+            Row(
+              children: [
+                Expanded(
+                  child: ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.green,
+                    ),
+                    onPressed: () {
+                      if (_scanResult.isNotEmpty) {
+                        _sendMessage('OFAN');
+                      }
+                    },
+                    child: Text('ON'),
+                  ),
+                ),
+                SizedBox(width: 10),
+                Expanded(
+                  child: ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.red,
+                    ),
+                    onPressed: () {
+                      if (_scanResult.isNotEmpty) {
+                        _sendMessage('OFAO');
+                      }
+                    },
+                    child: Text('OFF'),
+                  ),
+                ),
+              ],
+            ),
+            SizedBox(height: 20),
+            Text(
+              'Received: $_receivedMessage',
+              style: TextStyle(fontSize: 16),
+            ),
           ],
         ),
       ),
@@ -439,16 +599,57 @@ class _IPPageState extends State<IPPage> {
 }
 
 class CenasPage extends StatelessWidget {
+  final TextEditingController _cenaController = TextEditingController();
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: Text('Cenas Page'),
       ),
-      body: Center(
-        child: Text(
-          'Cenas Page Content',
-          style: TextStyle(fontSize: 24),
+      body: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: <Widget>[
+            Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _cenaController,
+                    decoration: InputDecoration(
+                      labelText: 'Cena',
+                      hintText: 'Digite a cena aqui',
+                    ),
+                  ),
+                ),
+                IconButton(
+                  icon: Icon(Icons.content_copy),
+                  onPressed: () {
+                    Clipboard.setData(ClipboardData(text: _cenaController.text));
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Cena copiada para a área de transferência')),
+                    );
+                  },
+                ),
+              ],
+            ),
+            SizedBox(height: 20),
+            Expanded(
+              child: Align(
+                alignment: Alignment.bottomCenter,
+                child: ElevatedButton(
+                  onPressed: () {
+                    // Lógica para gerar a cena
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Cena gerada')),
+                    );
+                  },
+                  child: Text('Gerar Cena'),
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );

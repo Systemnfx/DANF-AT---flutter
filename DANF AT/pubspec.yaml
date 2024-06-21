@@ -11,8 +11,12 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+
   udp: ^5.0.3
   mqtt_client: ^9.6.0
+  sqflite: any
+  path_provider:
+
 
 
   # The following adds the Cupertino Icons font to your application.
@@ -25,5 +29,8 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+  assets:
+    - assets/img.jpg
+
 
 
