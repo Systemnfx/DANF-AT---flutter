@@ -398,18 +398,19 @@ class _IPPageState extends State<IPPage> {
   Socket? _socket;
   TextEditingController _messageController = TextEditingController();
   String _receivedMessage = '';
+  Timer? _sendingSATimer; // Timer para enviar 'SA' a cada segundo
 
   @override
   void initState() {
     super.initState();
     _startScanLoop();
-    _startSendingSA(); // Inicia o envio da mensagem 'SA'
   }
 
   @override
   void dispose() {
     _scanTimer?.cancel();
     _socket?.close();
+    _sendingSATimer?.cancel(); // Cancela o timer de envio de 'SA'
     super.dispose();
   }
 
@@ -475,7 +476,7 @@ class _IPPageState extends State<IPPage> {
     try {
       _socket = await Socket.connect(ip, 8080);
       _socket!.listen(
-            (data) {
+        (data) {
           setState(() {
             _receivedMessage = utf8.decode(data);
           });
@@ -490,9 +491,17 @@ class _IPPageState extends State<IPPage> {
         },
       );
       print('Connected to: $ip');
+      _startSendingSA(); // Inicia o envio da mensagem 'SA'
     } catch (e) {
       print('Error connecting to server: $e');
     }
+  }
+
+  // Função para enviar a mensagem 'SA' a cada 1 segundo
+  void _startSendingSA() {
+    _sendingSATimer = Timer.periodic(Duration(seconds: 1), (timer) {
+      _sendMessage('SA');
+    });
   }
 
   Future<void> _sendMessage(String message) async {
@@ -503,13 +512,6 @@ class _IPPageState extends State<IPPage> {
     } else {
       print('Socket is not connected');
     }
-  }
-
-  // Função para enviar a mensagem 'SA' a cada 1 segundo
-  void _startSendingSA() {
-    Timer.periodic(Duration(seconds: 1), (timer) {
-      _sendMessage('SA');
-    });
   }
 
   @override
@@ -598,8 +600,14 @@ class _IPPageState extends State<IPPage> {
   }
 }
 
-class CenasPage extends StatelessWidget {
+class CenasPage extends StatefulWidget {
+  @override
+  _CenasPageState createState() => _CenasPageState();
+}
+
+class _CenasPageState extends State<CenasPage> {
   final TextEditingController _cenaController = TextEditingController();
+  List<bool> _checkBoxValues = List.generate(8, (index) => false);
 
   @override
   Widget build(BuildContext context) {
@@ -634,7 +642,33 @@ class CenasPage extends StatelessWidget {
                 ),
               ],
             ),
-            SizedBox(height: 20),
+            SizedBox(height: 10), // Espaçamento entre o TextField e o texto "Placa 1"
+            Text(
+              'Placa 1',
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+            ),
+            SizedBox(height: 10), // Espaçamento entre o texto "Placa 1" e as ChoiceChips
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: List.generate(8, (index) {
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 2.0), // Reduzindo o espaço inferior de cada ChoiceChip
+                  child: ChoiceChip(
+                    label: Text('C${index + 1}', style: TextStyle(fontSize: 12)), // Tamanho do texto reduzido
+                    selected: _checkBoxValues[index],
+                    onSelected: (bool selected) {
+                      setState(() {
+                        _checkBoxValues[index] = selected;
+                      });
+                    },
+                    selectedColor: Colors.green,
+                    labelStyle: TextStyle(fontSize: 12),
+                    backgroundColor: Colors.grey[200], // Fundo cinza claro
+                    padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4), // Ajuste do espaçamento interno do ChoiceChip
+                  ),
+                );
+              }),
+            ),
             Expanded(
               child: Align(
                 alignment: Alignment.bottomCenter,
