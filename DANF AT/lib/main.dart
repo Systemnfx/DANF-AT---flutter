@@ -607,7 +607,8 @@ class CenasPage extends StatefulWidget {
 
 class _CenasPageState extends State<CenasPage> {
   final TextEditingController _cenaController = TextEditingController();
-  List<bool> _checkBoxValues = List.generate(8, (index) => false);
+  List<bool> _checkBoxValuesGreen = List.generate(8, (index) => false);
+  List<bool> _checkBoxValuesRed = List.generate(8, (index) => false);
 
   @override
   Widget build(BuildContext context) {
@@ -627,7 +628,6 @@ class _CenasPageState extends State<CenasPage> {
                     controller: _cenaController,
                     decoration: InputDecoration(
                       labelText: 'Cena',
-                      hintText: 'Digite a cena aqui',
                     ),
                   ),
                 ),
@@ -649,23 +649,63 @@ class _CenasPageState extends State<CenasPage> {
             ),
             SizedBox(height: 10), // Espaçamento entre o texto "Placa 1" e as ChoiceChips
             Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
               children: List.generate(8, (index) {
-                return Padding(
-                  padding: const EdgeInsets.only(bottom: 2.0), // Reduzindo o espaço inferior de cada ChoiceChip
-                  child: ChoiceChip(
-                    label: Text('C${index + 1}', style: TextStyle(fontSize: 12)), // Tamanho do texto reduzido
-                    selected: _checkBoxValues[index],
-                    onSelected: (bool selected) {
-                      setState(() {
-                        _checkBoxValues[index] = selected;
-                      });
-                    },
-                    selectedColor: Colors.green,
-                    labelStyle: TextStyle(fontSize: 12),
-                    backgroundColor: Colors.grey[200], // Fundo cinza claro
-                    padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4), // Ajuste do espaçamento interno do ChoiceChip
-                  ),
+                return Row(
+                  children: [
+                    Expanded(
+                      child: GestureDetector(
+                        onTap: () {
+                          setState(() {
+                            _checkBoxValuesGreen[index] = !_checkBoxValuesGreen[index];
+                          });
+                        },
+                        child: Container(
+                          margin: EdgeInsets.all(4),
+                          padding: EdgeInsets.symmetric(horizontal: 5, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: _checkBoxValuesGreen[index] ? Colors.green : Colors.grey[200],
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Center(
+                            child: Text(
+                              'C${index + 1}',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: _checkBoxValuesGreen[index] ? Colors.white : Colors.black,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                    SizedBox(width: 10), // Espaçamento entre as colunas
+                    Expanded(
+                      child: GestureDetector(
+                        onTap: () {
+                          setState(() {
+                            _checkBoxValuesRed[index] = !_checkBoxValuesRed[index];
+                          });
+                        },
+                        child: Container(
+                          margin: EdgeInsets.all(2),
+                          padding: EdgeInsets.symmetric(horizontal: 5, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: _checkBoxValuesRed[index] ? Colors.red : Colors.grey[200],
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Center(
+                            child: Text(
+                              'C${index + 1}',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: _checkBoxValuesRed[index] ? Colors.white : Colors.black,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
                 );
               }),
             ),
